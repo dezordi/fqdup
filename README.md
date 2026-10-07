@@ -179,10 +179,14 @@ fqdup derep -i reads.sorted.fq.gz -o reads.deduped.fq.gz \
 ```bash
 git clone https://github.com/genomewalker/fqdup.git
 cd fqdup
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+# libtaph from a local checkout (>= 1.3.0) ...
+cmake -B build -DFETCHCONTENT_SOURCE_DIR_LIBTAPH=/path/to/libtaph
+# ... or from an installed libtaph (e.g. conda): -DFQDUP_USE_SYSTEM_LIBTAPH=ON
+cmake --build build -j$(nproc)
 ```
+
+`FQDUP_MARCH` defaults to `x86-64-v3`; use `-DFQDUP_MARCH=native` for a local
+build or `-DFQDUP_MARCH=` (empty) for a portable/ARM build.
 
 **Required:** CMake 3.10+, C++17 compiler, zlib, xxHash
 
@@ -775,6 +779,21 @@ ancient damage rather than PCR errors.
 See the [wiki](../../wiki) for detailed algorithm descriptions and benchmarks.
 
 ---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+### Third-party code
+
+The `fqdup` binary embeds these header-only libraries (fetched at build time):
+
+| Library | License | Source |
+|---------|---------|--------|
+| [ska::flat_hash_map](https://github.com/skarupke/flat_hash_map) | Boost Software License 1.0 (stated in `flat_hash_map.hpp`) | Malte Skarupke |
+| [BBHash](https://github.com/rizkg/BBHash) | MIT (`LICENSE`) | Guillaume Rizk |
+
+It also links [libtaph](https://github.com/genomewalker/libtaph) (MIT).
 
 ## Citation
 

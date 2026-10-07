@@ -48,8 +48,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include <malloc.h>
 #include <sys/stat.h>
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 #include "fqdup/damage_profile.hpp"
 #include "fqdup/fastq_common.hpp"
@@ -402,7 +404,9 @@ struct ShardedKmerTable {
             });
         }
         for (auto& w : workers) w.join();
+#ifdef __GLIBC__
         malloc_trim(0);  // return freed raw[] pages to OS
+#endif
     }
 
     // Build per-shard prefix index after flat[] is sorted and finalized.
@@ -480,7 +484,9 @@ struct ShardedKmerTable {
             });
         }
         for (auto& w : workers) w.join();
+#ifdef __GLIBC__
         malloc_trim(0);
+#endif
 #endif
     }
 

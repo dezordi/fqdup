@@ -8,6 +8,8 @@
 #include <iostream>
 #include <string>
 
+#include "fqdup/version.hpp"
+
 int sort_main(int argc, char** argv);
 int extend_main(int argc, char** argv);
 int derep_pairs_main(int argc, char** argv);
@@ -68,6 +70,11 @@ int main(int argc, char** argv) {
     if (sub == "trim")        return trim_main(argc - 1, argv + 1);
     if (sub == "merge")       return merge_main(argc - 1, argv + 1);
     if (sub == "consensus")   return consensus_main(argc - 1, argv + 1);
+
+    if (sub == "-V" || sub == "--version") {
+        std::cout << "fqdup " << FQDUP_VERSION << "\n";
+        return 0;
+    }
 
     if (sub == "-h" || sub == "--help") {
         usage(argv[0]);

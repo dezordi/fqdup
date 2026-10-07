@@ -1394,7 +1394,9 @@ static void merge_worker(PairQueue& in_q, MergeOutQueue& out_q,
                          taph::SampleDamageProfile* prof_out,
                          OverlapSubstCounts* subst_out) {
     std::string rc2_seq, rc2_qual;
-    taph::SampleDamageProfile local_prof;
+    // ~925 KiB: heap, not stack (macOS worker-thread stacks are 512 KiB)
+    auto local_prof_holder = std::make_unique<taph::SampleDamageProfile>();
+    taph::SampleDamageProfile& local_prof = *local_prof_holder;
     OverlapSubstCounts local_subst;
     const bool do_profile = (prof_out != nullptr);
     const bool do_subst   = (subst_out != nullptr);

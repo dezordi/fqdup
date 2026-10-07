@@ -72,27 +72,40 @@ FetchContent_MakeAvailable(flat_hash_map)
 # finalize}_sample_profile and taph::SampleDamageProfile with d_max_combined,
 # all channels, GC bins. Library target: `taph`.
 # To pin against a local checkout during development, set FETCHCONTENT_SOURCE_DIR_LIBTAPH.
-set(FQDUP_MARCH "x86-64-v3" CACHE STRING "Value passed to -march= (override for CI/portability)")
-# Build-provenance guard: a blank FETCHCONTENT_SOURCE_DIR_LIBTAPH silently pulls GitHub main,
-# which once linked a stale libtaph and produced wrong damage numbers with no visible signal.
-# Require an explicit local pin. CI that genuinely wants the remote fetch sets
-# -DFQDUP_ALLOW_REMOTE_LIBTAPH=ON to opt back in.
-option(FQDUP_ALLOW_REMOTE_LIBTAPH "Allow FetchContent to clone libtaph from GitHub instead of a local pin" OFF)
-if(NOT FQDUP_ALLOW_REMOTE_LIBTAPH AND NOT FETCHCONTENT_SOURCE_DIR_LIBTAPH)
-    message(FATAL_ERROR
-        "FETCHCONTENT_SOURCE_DIR_LIBTAPH is unset/empty. Refusing to fetch libtaph from GitHub "
-        "(that path once linked a stale clone silently). Pin a local checkout with "
-        "-DFETCHCONTENT_SOURCE_DIR_LIBTAPH=/path/to/libtaph, or set -DFQDUP_ALLOW_REMOTE_LIBTAPH=ON "
-        "to intentionally fetch the remote (CI only).")
+set(FQDUP_MARCH "x86-64-v3" CACHE STRING
+    "Value passed to -march=; empty = no -march flag (portable builds, e.g. conda/ARM)")
+
+set(FQDUP_LIBTAPH_MIN_VERSION "1.3.0")
+option(FQDUP_USE_SYSTEM_LIBTAPH "Use an installed libtaph (find_package) instead of FetchContent" OFF)
+
+if(FQDUP_USE_SYSTEM_LIBTAPH)
+    find_package(taph ${FQDUP_LIBTAPH_MIN_VERSION} CONFIG REQUIRED)
+    message(STATUS "Using installed libtaph ${taph_VERSION} (${taph_DIR})")
+else()
+    set(FQDUP_LIBTAPH_REF "v${FQDUP_LIBTAPH_MIN_VERSION}" CACHE STRING
+        "libtaph git ref for remote FetchContent")
+    # Build-provenance guard: a blank FETCHCONTENT_SOURCE_DIR_LIBTAPH silently pulls GitHub,
+    # which once linked a stale libtaph. Require an explicit local pin or opt-in.
+    option(FQDUP_ALLOW_REMOTE_LIBTAPH "Allow FetchContent to clone libtaph from GitHub instead of a local pin" OFF)
+    if(NOT FQDUP_ALLOW_REMOTE_LIBTAPH AND NOT FETCHCONTENT_SOURCE_DIR_LIBTAPH)
+        message(FATAL_ERROR
+            "FETCHCONTENT_SOURCE_DIR_LIBTAPH is unset/empty. Pin a local checkout with "
+            "-DFETCHCONTENT_SOURCE_DIR_LIBTAPH=/path/to/libtaph, use an installed libtaph with "
+            "-DFQDUP_USE_SYSTEM_LIBTAPH=ON, or set -DFQDUP_ALLOW_REMOTE_LIBTAPH=ON (CI only).")
+    endif()
+    FetchContent_Declare(
+        libtaph
+        GIT_REPOSITORY https://github.com/genomewalker/libtaph.git
+        GIT_TAG        ${FQDUP_LIBTAPH_REF}
+        GIT_SHALLOW    FALSE
+    )
+    set(TAPH_MARCH "${FQDUP_MARCH}" CACHE STRING "" FORCE)
+    FetchContent_MakeAvailable(libtaph)
+    if(NOT DEFINED TAPH_VERSION OR TAPH_VERSION VERSION_LESS FQDUP_LIBTAPH_MIN_VERSION)
+        message(FATAL_ERROR
+            "fqdup requires libtaph >= ${FQDUP_LIBTAPH_MIN_VERSION} (found '${TAPH_VERSION}')")
+    endif()
 endif()
-FetchContent_Declare(
-    libtaph
-    GIT_REPOSITORY https://github.com/genomewalker/libtaph.git
-    GIT_TAG        main
-    GIT_SHALLOW    FALSE
-)
-set(TAPH_MARCH "${FQDUP_MARCH}" CACHE STRING "" FORCE)
-FetchContent_MakeAvailable(libtaph)
 
 # BBHash (header-only MPHF — O(1) pass2 lookup for extend, ~3.7 bits/key)
 FetchContent_Declare(
@@ -138,10 +151,16 @@ target_link_libraries(fqdup PRIVATE
     Threads::Threads
     ${XXHASH_LIB}
     ${ZSTD_LIB}
-    taph
+    taph::taph
 )
 target_compile_definitions(fqdup PRIVATE HAVE_BBHASH)
-target_compile_options(fqdup PRIVATE -O2 -march=${FQDUP_MARCH})
+target_compile_options(fqdup PRIVATE -O2)
+if(FQDUP_MARCH)
+    target_compile_options(fqdup PRIVATE -march=${FQDUP_MARCH})
+endif()
+
+include(GNUInstallDirs)
+install(TARGETS fqdup RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 if(ISAL_INCLUDE_DIR AND ISAL_LIB)
     target_include_directories(fqdup PRIVATE ${ISAL_INCLUDE_DIR})
@@ -159,6 +178,8 @@ if(JEMALLOC_LIB)
 endif()
 
 # Tests
+option(FQDUP_BUILD_TESTS "Build fqdup tests" ON)
+if(FQDUP_BUILD_TESTS)
 enable_testing()
 
 add_executable(gen_synthetic tests/gen_synthetic.cpp)
@@ -225,3 +246,4 @@ add_test(NAME hexamer_confound
 add_test(NAME pipeline
          COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_pipeline.sh
                  $<TARGET_FILE:fqdup> $<TARGET_FILE:gen_synthetic>)
+endif()
